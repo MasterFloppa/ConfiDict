@@ -7,6 +7,9 @@ and receive semantic grading from an open-weight model that runs in the browser.
 This project is being built for the
 [Hacktoberfest Open-Source AI Challenge: Week 2 — Side Hustle](https://dev.to/challenges/hacktoberfest-week2-2026-10-12).
 
+The copy-ready DEV submission draft is in
+[`docs/dev-submission.md`](docs/dev-submission.md).
+
 ## The problem
 
 Traditional flashcards usually ask learners to reveal an answer and grade
