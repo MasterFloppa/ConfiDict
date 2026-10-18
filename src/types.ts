@@ -30,7 +30,6 @@ export interface ReviewEvent {
   answer: string
   expectedDefinition: string
   grade: Grade
-  semanticScore: number
   confidenceBefore: number
   confidenceAfter: number
   reviewedAt: string
@@ -47,7 +46,6 @@ export interface StudySession {
 
 export interface GradingResult {
   grade: Grade
-  semanticScore: number
   feedback: string
   modelId: string
 }

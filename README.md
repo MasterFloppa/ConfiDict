@@ -30,8 +30,7 @@ The MVP includes:
 - Five daily cards selected from the 15 lowest-confidence words
 - Weighted selection so weaker words appear more often without producing the
   exact same session every day
-- Local semantic grading with
-  [`all-MiniLM-L6-v2`](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2)
+- Local semantic grading with Gemma 4B through Ollama
 - Explicit correct, partial, and incorrect feedback
 - Learner overrides when the model grades an unusual but valid answer unfairly
 - Local progress and review history
@@ -40,11 +39,10 @@ ConfiDict does **not** show or store a next-review date for each word.
 
 ## Why open-source AI matters
 
-The semantic model is open-weight and executes in the browser through
-[Transformers.js](https://huggingface.co/docs/transformers.js). After its first
-download, the model is cached by the browser and definitions can be graded
-without sending a learner's complete word collection to a proprietary AI
-provider.
+The semantic model is open-weight and runs through
+[Ollama](https://ollama.com) on the learner's computer. Definitions can be
+graded without sending a learner's word collection or answers to a proprietary
+AI provider.
 
 That makes the core experience:
 
@@ -145,16 +143,31 @@ naturally relational.
 - TypeScript
 - Vite
 - Dexie and IndexedDB
-- Transformers.js
-- `all-MiniLM-L6-v2` semantic embeddings
+- Ollama
+- Gemma 3 4B (`gemma3:4b`)
+- Zod-validated structured outputs
 - Vitest
 
 ## Development
 
 ```bash
 pnpm install
+ollama serve
+ollama pull gemma3:4b
 pnpm dev
 ```
+
+By default, the frontend calls `http://127.0.0.1:11434` and uses
+`gemma3:4b`. Both can be changed at build time:
+
+```bash
+VITE_OLLAMA_BASE_URL=http://127.0.0.1:11434
+VITE_OLLAMA_MODEL=gemma3:4b
+```
+
+Ollama permits localhost web origins by default. If the frontend is hosted on a
+different origin, add that exact origin to `OLLAMA_ORIGINS` before starting
+Ollama.
 
 Run validation:
 

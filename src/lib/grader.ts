@@ -1,102 +1,52 @@
+import { z } from 'zod'
 import type {
   Grade,
   GradingResult,
   ModelProgress,
 } from '@/types'
 
-export const SEMANTIC_MODEL_ID = 'onnx-community/all-MiniLM-L6-v2-ONNX'
+export const OLLAMA_MODEL =
+  import.meta.env.VITE_OLLAMA_MODEL?.trim() || 'gemma3:4b'
+export const OLLAMA_BASE_URL = (
+  import.meta.env.VITE_OLLAMA_BASE_URL?.trim() ||
+  'http://127.0.0.1:11434'
+).replace(/\/$/, '')
 
-interface EmbeddingTensor {
-  tolist(): number[][]
-}
+const ModelGradeSchema = z.object({
+  grade: z.enum(['strong', 'correct', 'partial', 'incorrect']),
+  feedback: z.string().min(3).max(320),
+})
 
-type FeatureExtractor = (
-  texts: string[],
-  options: { pooling: 'mean'; normalize: true },
-) => Promise<EmbeddingTensor>
+const OllamaChatResponseSchema = z.object({
+  message: z.object({
+    content: z.string(),
+  }),
+})
 
-let extractorPromise: Promise<FeatureExtractor> | null = null
+const OllamaTagsResponseSchema = z.object({
+  models: z.array(
+    z.object({
+      name: z.string(),
+    }),
+  ),
+})
 
-function normalizeText(value: string): string {
-  return value
-    .toLocaleLowerCase()
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function meaningfulTokens(value: string): Set<string> {
-  const stopWords = new Set([
-    'a',
-    'an',
-    'and',
-    'as',
-    'be',
-    'being',
-    'by',
-    'for',
-    'from',
-    'in',
-    'is',
-    'it',
-    'of',
-    'or',
-    'that',
-    'the',
-    'to',
-    'with',
-  ])
-
-  return new Set(
-    normalizeText(value)
-      .split(' ')
-      .filter((token) => token.length > 2 && !stopWords.has(token)),
-  )
-}
-
-function lexicalCoverage(answer: string, definition: string): number {
-  const answerTokens = meaningfulTokens(answer)
-  const definitionTokens = meaningfulTokens(definition)
-  if (definitionTokens.size === 0) {
-    return 0
-  }
-
-  let matches = 0
-  for (const token of definitionTokens) {
-    if (answerTokens.has(token)) {
-      matches += 1
-    }
-  }
-  return matches / definitionTokens.size
-}
-
-function hasNegation(value: string): boolean {
-  return /\b(?:no|not|never|neither|without|lacks?|isn't|aren't|doesn't|don't)\b/i.test(
-    value,
-  )
-}
-
-function dotProduct(left: number[], right: number[]): number {
-  const length = Math.min(left.length, right.length)
-  let total = 0
-  for (let index = 0; index < length; index += 1) {
-    total += left[index] * right[index]
-  }
-  return total
-}
-
-export function gradeFromScore(score: number): Grade {
-  if (score >= 0.78) {
-    return 'strong'
-  }
-  if (score >= 0.64) {
-    return 'correct'
-  }
-  if (score >= 0.47) {
-    return 'partial'
-  }
-  return 'incorrect'
-}
+const GRADE_JSON_SCHEMA = {
+  type: 'object',
+  properties: {
+    grade: {
+      type: 'string',
+      enum: ['strong', 'correct', 'partial', 'incorrect'],
+    },
+    feedback: {
+      type: 'string',
+      description:
+        'One concise sentence explaining what the learner captured or missed. Do not merely repeat the grade.',
+    },
+  },
+  required: ['grade', 'feedback'],
+  additionalProperties: false,
+} as const
 
 export function feedbackForGrade(grade: Grade): string {
   switch (grade) {
@@ -111,99 +61,101 @@ export function feedbackForGrade(grade: Grade): string {
   }
 }
 
-function readProgress(event: unknown): ModelProgress {
-  if (!event || typeof event !== 'object') {
-    return { status: 'loading' }
+export async function checkOllamaAvailability(): Promise<{
+  available: boolean
+  modelInstalled: boolean
+}> {
+  const response = await fetch(`${OLLAMA_BASE_URL}/api/tags`)
+  if (!response.ok) {
+    throw new Error(`Ollama returned HTTP ${response.status}.`)
   }
 
-  const record = event as Record<string, unknown>
+  const body = OllamaTagsResponseSchema.parse(await response.json())
   return {
-    status: typeof record.status === 'string' ? record.status : 'loading',
-    progress:
-      typeof record.progress === 'number'
-        ? Math.max(0, Math.min(100, record.progress))
-        : undefined,
-    file: typeof record.file === 'string' ? record.file : undefined,
+    available: true,
+    modelInstalled: body.models.some((model) => model.name === OLLAMA_MODEL),
   }
-}
-
-async function getExtractor(
-  onProgress?: (progress: ModelProgress) => void,
-): Promise<FeatureExtractor> {
-  if (!extractorPromise) {
-    extractorPromise = import('@huggingface/transformers').then(
-      async ({ env, pipeline }) => {
-        env.allowLocalModels = false
-        env.useBrowserCache = true
-
-        const extractor = await pipeline(
-          'feature-extraction',
-          SEMANTIC_MODEL_ID,
-          {
-            dtype: 'q8',
-            progress_callback: (event: unknown) => {
-              onProgress?.(readProgress(event))
-            },
-          },
-        )
-
-        return extractor as FeatureExtractor
-      },
-    )
-  }
-
-  return extractorPromise
 }
 
 export async function gradeDefinition(
+  word: string,
   answer: string,
   expectedDefinition: string,
   onProgress?: (progress: ModelProgress) => void,
 ): Promise<GradingResult> {
-  const normalizedAnswer = normalizeText(answer)
-  const normalizedDefinition = normalizeText(expectedDefinition)
-
-  if (!normalizedAnswer) {
-    throw new Error('Write a definition before asking the model to grade it.')
+  if (!answer.trim()) {
+    throw new Error('Write a definition before asking Gemma to grade it.')
   }
 
-  if (normalizedAnswer === normalizedDefinition) {
-    return {
-      grade: 'strong',
-      semanticScore: 1,
-      feedback: feedbackForGrade('strong'),
-      modelId: SEMANTIC_MODEL_ID,
-    }
+  onProgress?.({ status: 'Connecting to local Ollama' })
+
+  const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: OLLAMA_MODEL,
+      stream: false,
+      format: GRADE_JSON_SCHEMA,
+      keep_alive: '10m',
+      options: {
+        temperature: 0,
+        seed: 42,
+      },
+      messages: [
+        {
+          role: 'system',
+          content: [
+            'You are a careful vocabulary tutor grading a learner definition.',
+            'Accept accurate paraphrases, synonyms, and concise explanations.',
+            'Do not require the learner to repeat the reference wording.',
+            'Use strong when the meaning is accurate and complete.',
+            'A strong answer must include every essential part of the reference meaning.',
+            'A broad one-word synonym can be correct or partial, but never strong.',
+            'Use correct when the core meaning is accurate but less complete.',
+            'Use partial when the answer is related but misses an essential detail or is too vague.',
+            'Use incorrect when the answer is wrong, opposite, unrelated, circular, or does not define the word.',
+            'Ignore minor grammar and spelling errors when the intended meaning is clear.',
+            'Your feedback must name what the learner captured or what important idea is missing.',
+            'Return only JSON matching the supplied schema.',
+          ].join(' '),
+        },
+        {
+          role: 'user',
+          content: [
+            `Word: ${word}`,
+            `Reference definition: ${expectedDefinition}`,
+            `Learner answer: ${answer}`,
+          ].join('\n'),
+        },
+      ],
+    }),
+  })
+
+  if (!response.ok) {
+    const details = await response.text()
+    throw new Error(
+      `Ollama returned HTTP ${response.status}${
+        details ? `: ${details}` : '.'
+      }`,
+    )
   }
 
-  const extractor = await getExtractor(onProgress)
-  const embeddings = await extractor(
-    [normalizedAnswer, normalizedDefinition],
-    { pooling: 'mean', normalize: true },
-  )
-  const [answerEmbedding, definitionEmbedding] = embeddings.tolist()
+  onProgress?.({ status: `Evaluating with ${OLLAMA_MODEL}` })
 
-  if (!answerEmbedding || !definitionEmbedding) {
-    throw new Error('The semantic model returned an incomplete embedding result.')
+  const chatResponse = OllamaChatResponseSchema.parse(await response.json())
+  let modelOutput: unknown
+  try {
+    modelOutput = JSON.parse(chatResponse.message.content)
+  } catch {
+    throw new Error('Gemma returned malformed JSON.')
   }
 
-  const semanticSimilarity = dotProduct(answerEmbedding, definitionEmbedding)
-  const tokenCoverage = lexicalCoverage(normalizedAnswer, normalizedDefinition)
-  const negationPenalty =
-    hasNegation(normalizedAnswer) !== hasNegation(normalizedDefinition) ? 0.12 : 0
-  const combinedScore = Math.max(
-    0,
-    Math.min(
-      1,
-      semanticSimilarity * 0.88 + tokenCoverage * 0.12 - negationPenalty,
-    ),
-  )
-  const grade = gradeFromScore(combinedScore)
-
+  const graded = ModelGradeSchema.parse(modelOutput)
   return {
-    grade,
-    semanticScore: combinedScore,
-    feedback: feedbackForGrade(grade),
-    modelId: SEMANTIC_MODEL_ID,
+    grade: graded.grade,
+    feedback: graded.feedback,
+    modelId: OLLAMA_MODEL,
   }
 }

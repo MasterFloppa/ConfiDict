@@ -8,7 +8,6 @@ import {
 } from '@/lib/study'
 import type {
   Grade,
-  GradingResult,
   ReviewEvent,
   ReviewSource,
   StoredWordCard,
@@ -145,14 +144,12 @@ export async function getOrCreateTodaySession(): Promise<StudySession> {
 export async function commitReview({
   word,
   answer,
-  result,
   grade,
   source,
   sessionDate,
 }: {
   word: StoredWordCard
   answer: string
-  result: GradingResult
   grade: Grade
   source: ReviewSource
   sessionDate: string
@@ -182,7 +179,6 @@ export async function commitReview({
         answer,
         expectedDefinition: word.definition,
         grade,
-        semanticScore: result.semanticScore,
         confidenceBefore: word.confidence,
         confidenceAfter,
         reviewedAt,
