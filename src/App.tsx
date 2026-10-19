@@ -70,19 +70,47 @@ function App() {
 
   useEffect(() => {
     let active = true
-    checkOllamaAvailability()
-      .then(({ modelInstalled }) => {
+    let checking = false
+
+    async function refreshOllamaStatus() {
+      if (checking) {
+        return
+      }
+
+      checking = true
+      try {
+        const { modelInstalled } = await checkOllamaAvailability()
         if (active) {
           setOllamaStatus(modelInstalled ? 'ready' : 'missing')
         }
-      })
-      .catch(() => {
+      } catch {
         if (active) {
           setOllamaStatus('offline')
         }
-      })
+      } finally {
+        checking = false
+      }
+    }
+
+    const handleFocus = () => {
+      void refreshOllamaStatus()
+    }
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void refreshOllamaStatus()
+      }
+    }
+
+    void refreshOllamaStatus()
+    const interval = window.setInterval(refreshOllamaStatus, 5_000)
+    window.addEventListener('focus', handleFocus)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
     return () => {
       active = false
+      window.clearInterval(interval)
+      window.removeEventListener('focus', handleFocus)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [])
 
@@ -188,10 +216,12 @@ function App() {
 
         <div className={`privacy-badge status-${ollamaStatus}`} aria-live="polite">
           <span aria-hidden="true" />
-          {ollamaStatus === 'checking' ? 'Checking Gemma' : null}
-          {ollamaStatus === 'ready' ? 'Gemma ready' : null}
-          {ollamaStatus === 'missing' ? 'Gemma model missing' : null}
-          {ollamaStatus === 'offline' ? 'Ollama offline' : null}
+          {ollamaStatus === 'checking' ? 'Checking Ollama' : null}
+          {ollamaStatus === 'ready' ? 'Ollama + Gemma connected' : null}
+          {ollamaStatus === 'missing'
+            ? 'Ollama connected · Gemma missing'
+            : null}
+          {ollamaStatus === 'offline' ? 'Ollama disconnected' : null}
         </div>
       </header>
 

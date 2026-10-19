@@ -37,6 +37,10 @@ describe('checkOllamaAvailability', () => {
       available: true,
       modelInstalled: true,
     })
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/tags'),
+      expect.objectContaining({ cache: 'no-store' }),
+    )
   })
 })
 

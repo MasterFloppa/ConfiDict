@@ -12,6 +12,7 @@ export const OLLAMA_BASE_URL = (
   'http://127.0.0.1:11434'
 ).replace(/\/$/, '')
 const OLLAMA_TIMEOUT_MS = 120_000
+const OLLAMA_HEALTH_TIMEOUT_MS = 3_000
 
 const ModelGradeSchema = z.object({
   grade: z.enum(['strong', 'correct', 'partial', 'incorrect']),
@@ -66,15 +67,34 @@ export async function checkOllamaAvailability(): Promise<{
   available: boolean
   modelInstalled: boolean
 }> {
-  const response = await fetch(`${OLLAMA_BASE_URL}/api/tags`)
-  if (!response.ok) {
-    throw new Error(`Ollama returned HTTP ${response.status}.`)
-  }
+  const controller = new AbortController()
+  const timeout = globalThis.setTimeout(
+    () => controller.abort(),
+    OLLAMA_HEALTH_TIMEOUT_MS,
+  )
 
-  const body = OllamaTagsResponseSchema.parse(await response.json())
-  return {
-    available: true,
-    modelInstalled: body.models.some((model) => model.name === OLLAMA_MODEL),
+  try {
+    const response = await fetch(`${OLLAMA_BASE_URL}/api/tags`, {
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+    if (!response.ok) {
+      throw new Error(`Ollama returned HTTP ${response.status}.`)
+    }
+
+    const body = OllamaTagsResponseSchema.safeParse(await response.json())
+    if (!body.success) {
+      throw new Error('Ollama returned an invalid model list.')
+    }
+
+    return {
+      available: true,
+      modelInstalled: body.data.models.some(
+        (model) => model.name === OLLAMA_MODEL,
+      ),
+    }
+  } finally {
+    globalThis.clearTimeout(timeout)
   }
 }
 
