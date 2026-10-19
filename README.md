@@ -153,10 +153,32 @@ naturally relational.
 
 ## Development
 
-```bash
+### One-time setup
+
+From the cloned ConfiDict directory:
+
+```powershell
 pnpm install
-ollama serve
 ollama pull gemma3:4b
+```
+
+### Run ConfiDict
+
+Keep these commands running in **two separate terminals**.
+
+**Terminal 1 — start Ollama:**
+
+```powershell
+ollama serve
+```
+
+If Ollama reports that the address is already in use, its server is already
+running.
+
+**Terminal 2 — start ConfiDict:**
+
+```powershell
+cd "path\to\ConfiDict"
 pnpm dev
 ```
 
