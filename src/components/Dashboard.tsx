@@ -7,7 +7,7 @@ import {
   Target,
 } from 'lucide-react'
 import { ConfidenceMeter } from '@/components/ConfidenceMeter'
-import { todayKey } from '@/lib/study'
+import { DAILY_CARD_COUNT, todayKey } from '@/lib/study'
 import type {
   ReviewEvent,
   StoredWordCard,
@@ -40,8 +40,8 @@ export function Dashboard({
         </div>
         <h1>Build confidence in the words that matter to you.</h1>
         <p>
-          Import your vocabulary list, define five words each day, and let a
-          local semantic model identify which meanings need more practice.
+          Import your vocabulary list, define up to five words each day, and let
+          a local semantic model identify which meanings need more practice.
         </p>
         <div className="hero-actions">
           <button className="button primary" type="button" onClick={onOpenWords}>
@@ -89,6 +89,8 @@ export function Dashboard({
     .slice(0, 5)
   const sessionComplete = Boolean(session?.completedAt)
   const completedCount = session?.completedWordIds.length ?? 0
+  const dailyTotal =
+    session?.wordIds.length ?? Math.min(DAILY_CARD_COUNT, words.length)
 
   return (
     <section className="page-stack">
@@ -101,7 +103,9 @@ export function Dashboard({
           <h1>
             {sessionComplete
               ? 'Daily practice complete.'
-              : 'Five words. Focused feedback.'}
+              : `${dailyTotal} ${
+                  dailyTotal === 1 ? 'word' : 'words'
+                }. Focused feedback.`}
           </h1>
           <p>
             ConfiDict samples from your 15 lowest-confidence words and grades
@@ -111,8 +115,10 @@ export function Dashboard({
         </div>
         <div className="dashboard-action">
           <div className="daily-count">
-            <strong>{sessionComplete ? 5 : completedCount}</strong>
-            <span>of 5 today</span>
+            <strong>{sessionComplete ? dailyTotal : completedCount}</strong>
+            <span>
+              of {dailyTotal} today
+            </span>
           </div>
           <button
             className="button primary large"
@@ -124,7 +130,11 @@ export function Dashboard({
               ? 'View today’s result'
               : completedCount > 0
                 ? 'Resume practice'
-                : 'Start today’s five'}
+                : dailyTotal === DAILY_CARD_COUNT
+                  ? 'Start today’s five'
+                  : dailyTotal === 1
+                    ? 'Start today’s word'
+                    : `Start today’s ${dailyTotal} words`}
           </button>
         </div>
       </div>
@@ -143,7 +153,7 @@ export function Dashboard({
         <article className="stat-card">
           <span>Answers today</span>
           <strong>{todayReviews}</strong>
-          <small>Daily goal: 5</small>
+          <small>Daily goal: {dailyTotal}</small>
         </article>
         <article className="stat-card">
           <span>Total reviews</span>

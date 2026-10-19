@@ -27,4 +27,19 @@ describe('parseWordEntries', () => {
       { term: 'Novel', definition: 'new or unusual' },
     ])
   })
+
+  it('supports tabs and arrows while ignoring comments and blank entries', () => {
+    const entries = parseWordEntries(`
+      # imported vocabulary
+      emulate\tto match through imitation
+      concise => brief but clear
+      :: missing term
+      missing definition ::
+    `)
+
+    expect(entries).toEqual([
+      { term: 'emulate', definition: 'to match through imitation' },
+      { term: 'concise', definition: 'brief but clear' },
+    ])
+  })
 })

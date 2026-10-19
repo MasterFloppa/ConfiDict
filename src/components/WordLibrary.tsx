@@ -59,6 +59,12 @@ export function WordLibrary({
       setTerm('')
       setDefinition('')
       setMessage('Word saved.')
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? `Could not save the word: ${error.message}`
+          : 'Could not save the word.',
+      )
     } finally {
       setSaving(false)
     }
@@ -81,6 +87,12 @@ export function WordLibrary({
           result.updated > 0 ? ` and ${result.updated} updated` : ''
         }.`,
       )
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? `Could not import the entries: ${error.message}`
+          : 'Could not import the entries.',
+      )
     } finally {
       setSaving(false)
     }
@@ -90,7 +102,16 @@ export function WordLibrary({
     if (!window.confirm(`Remove “${word.term}” and its review history?`)) {
       return
     }
-    await onDelete(word.id)
+    try {
+      await onDelete(word.id)
+      setMessage(`Removed “${word.term}”.`)
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? `Could not remove “${word.term}”: ${error.message}`
+          : `Could not remove “${word.term}”.`,
+      )
+    }
   }
 
   async function handleClear() {
@@ -101,7 +122,15 @@ export function WordLibrary({
     ) {
       return
     }
-    await onClearAll()
+    try {
+      await onClearAll()
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? `Could not clear the library: ${error.message}`
+          : 'Could not clear the library.',
+      )
+    }
   }
 
   return (
@@ -192,7 +221,9 @@ export function WordLibrary({
         <div className="panel-heading library-heading">
           <div>
             <span className="section-kicker">Your collection</span>
-            <h2>{words.length} words</h2>
+            <h2>
+              {words.length} {words.length === 1 ? 'word' : 'words'}
+            </h2>
           </div>
           <div className="library-tools">
             <label className="search-box">

@@ -1,7 +1,7 @@
 # ConfiDict
 
 ConfiDict is a local-first vocabulary confidence trainer. Learners import the
-words they want to remember, define five words in their own language each day,
+words they want to remember, define up to five words in their own language each day,
 and receive semantic grading from an open-weight model that runs in the browser.
 
 This project is being built for the
@@ -30,7 +30,7 @@ The MVP includes:
 
 - Individual and bulk word import
 - A confidence score from 0 to 100 for every word
-- Five daily cards selected from the 15 lowest-confidence words
+- Up to five daily cards selected from the 15 lowest-confidence words
 - Weighted selection so weaker words appear more often without producing the
   exact same session every day
 - Local semantic grading with Gemma 4B through Ollama

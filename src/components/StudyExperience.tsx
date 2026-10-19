@@ -89,6 +89,7 @@ export function StudyExperience({
     }
 
     setCommitting(true)
+    setError(null)
     try {
       await commitReview({
         word: currentWord,
@@ -98,6 +99,12 @@ export function StudyExperience({
           result && selectedGrade === result.grade ? 'ai' : 'override',
         sessionDate: session.date,
       })
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? `Could not save this review: ${saveError.message}`
+          : 'Could not save this review. Please try again.',
+      )
     } finally {
       setCommitting(false)
     }
@@ -110,10 +117,11 @@ export function StudyExperience({
           <CheckCircle2 size={34} />
         </span>
         <span className="section-kicker">Daily loop complete</span>
-        <h1>You reviewed today’s five.</h1>
+        <h1>Today’s review is complete.</h1>
         <p>
-          Your confidence scores are updated. Tomorrow’s set will be selected
-          fresh from the words that need the most attention.
+          You reviewed {total} {total === 1 ? 'word' : 'words'}. Your confidence
+          scores are updated, and tomorrow’s set will be selected fresh from the
+          words that need the most attention.
         </p>
         <button className="button primary large" type="button" onClick={onExit}>
           View dashboard
@@ -214,9 +222,17 @@ export function StudyExperience({
           <div className="grading-error" role="alert">
             <CircleAlert size={20} />
             <div>
-              <strong>Automatic grading unavailable</strong>
+              <strong>
+                {result
+                  ? 'Could not save the review'
+                  : 'Automatic grading unavailable'}
+              </strong>
               <p>{error}</p>
-              <p>Review the reference and choose a grade manually below.</p>
+              <p>
+                {result
+                  ? 'Your answer is still here. Retry when ready.'
+                  : 'Review the reference and choose a grade manually below.'}
+              </p>
             </div>
           </div>
         ) : null}
@@ -258,6 +274,7 @@ export function StudyExperience({
                         : `grade-option grade-${option.grade}`
                     }
                     onClick={() => setSelectedGrade(option.grade)}
+                    aria-pressed={selectedGrade === option.grade}
                   >
                     {option.label}
                   </button>
@@ -273,6 +290,7 @@ export function StudyExperience({
                   setResult(null)
                   setSelectedGrade(null)
                   setError(null)
+                  setModelProgress(null)
                 }}
               >
                 <RotateCcw size={17} />

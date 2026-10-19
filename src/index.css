@@ -682,12 +682,16 @@ textarea:focus-visible {
 }
 
 .tone-weak,
-.grade-incorrect {
+.result-heading.grade-incorrect,
+.grade-pill.grade-incorrect,
+.grade-option.selected.grade-incorrect {
   background: var(--cp-danger);
 }
 
 .tone-building,
-.grade-partial {
+.result-heading.grade-partial,
+.grade-pill.grade-partial,
+.grade-option.selected.grade-partial {
   background: var(--cp-warning);
 }
 
@@ -696,8 +700,12 @@ textarea:focus-visible {
 }
 
 .tone-strong,
-.grade-correct,
-.grade-strong {
+.result-heading.grade-correct,
+.result-heading.grade-strong,
+.grade-pill.grade-correct,
+.grade-pill.grade-strong,
+.grade-option.selected.grade-correct,
+.grade-option.selected.grade-strong {
   background: var(--cp-success);
 }
 

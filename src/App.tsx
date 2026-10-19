@@ -28,6 +28,12 @@ function isStoredWord(word: WordCard): word is StoredWordCard {
   return typeof word.id === 'number'
 }
 
+function errorMessage(action: string, error: unknown): string {
+  return error instanceof Error
+    ? `${action}: ${error.message}`
+    : `${action}. Please try again.`
+}
+
 function App() {
   const [view, setView] = useState<View>('home')
   const [notice, setNotice] = useState<string | null>(null)
@@ -41,7 +47,7 @@ function App() {
     [],
   )
   const reviews = useLiveQuery(
-    () => db.reviews.orderBy('reviewedAt').reverse().limit(100).toArray(),
+    () => db.reviews.orderBy('reviewedAt').reverse().toArray(),
     [],
   )
   const todaySession = useLiveQuery(
@@ -81,8 +87,12 @@ function App() {
   }, [])
 
   async function handleStartStudy() {
-    await getOrCreateTodaySession()
-    setView('study')
+    try {
+      await getOrCreateTodaySession()
+      setView('study')
+    } catch (error) {
+      setNotice(errorMessage('Could not start the study session', error))
+    }
   }
 
   async function handleImport(entries: WordEntry[]) {
@@ -96,23 +106,37 @@ function App() {
   }
 
   async function handleLoadSample() {
-    const result = await loadSampleWords()
-    setNotice(
-      result.added > 0
-        ? `Loaded ${result.added} sample words.`
-        : 'The sample words are already in your library.',
-    )
+    try {
+      const result = await loadSampleWords()
+      setNotice(
+        result.added > 0
+          ? `Loaded ${result.added} sample words.`
+          : 'The sample words are already in your library.',
+      )
+    } catch (error) {
+      setNotice(errorMessage('Could not load the sample deck', error))
+    }
   }
 
   async function handleDeleteWord(wordId: number) {
-    await deleteWord(wordId)
-    setNotice('Word removed from your library.')
+    try {
+      await deleteWord(wordId)
+      setNotice('Word removed from your library.')
+    } catch (error) {
+      setNotice(errorMessage('Could not remove the word', error))
+      throw error
+    }
   }
 
   async function handleClearAll() {
-    await clearAllLearningData()
-    setView('home')
-    setNotice('Local learning data cleared.')
+    try {
+      await clearAllLearningData()
+      setView('home')
+      setNotice('Local learning data cleared.')
+    } catch (error) {
+      setNotice(errorMessage('Could not clear local learning data', error))
+      throw error
+    }
   }
 
   const loading = wordRecords === undefined || reviews === undefined

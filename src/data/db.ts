@@ -40,7 +40,10 @@ function toStoredWord(word: WordCard): StoredWordCard {
   return word as StoredWordCard
 }
 
-export async function upsertWords(entries: WordEntry[]): Promise<{
+async function persistWords(
+  entries: WordEntry[],
+  updateExisting: boolean,
+): Promise<{
   added: number
   updated: number
 }> {
@@ -62,14 +65,14 @@ export async function upsertWords(entries: WordEntry[]): Promise<{
         .equals(normalizedTerm)
         .first()
 
-      if (existing?.id !== undefined) {
+      if (existing?.id !== undefined && updateExisting) {
         await db.words.update(existing.id, {
           term,
           definition,
           updatedAt: timestamp,
         })
         updated += 1
-      } else {
+      } else if (!existing) {
         await db.words.add({
           term,
           normalizedTerm,
@@ -88,17 +91,50 @@ export async function upsertWords(entries: WordEntry[]): Promise<{
   return { added, updated }
 }
 
+export async function upsertWords(entries: WordEntry[]): Promise<{
+  added: number
+  updated: number
+}> {
+  return persistWords(entries, true)
+}
+
 export async function loadSampleWords(): Promise<{
   added: number
   updated: number
 }> {
-  return upsertWords(SAMPLE_WORDS)
+  return persistWords(SAMPLE_WORDS, false)
 }
 
 export async function deleteWord(wordId: number): Promise<void> {
-  await db.transaction('rw', db.words, db.reviews, async () => {
+  await db.transaction('rw', db.words, db.reviews, db.sessions, async () => {
     await db.words.delete(wordId)
     await db.reviews.where('wordId').equals(wordId).delete()
+
+    const sessions = await db.sessions.toArray()
+    for (const session of sessions) {
+      if (!session.wordIds.includes(wordId)) {
+        continue
+      }
+
+      const wordIds = session.wordIds.filter((id) => id !== wordId)
+      const completedWordIds = session.completedWordIds.filter(
+        (id) => id !== wordId,
+      )
+
+      if (wordIds.length === 0) {
+        await db.sessions.delete(session.date)
+        continue
+      }
+
+      await db.sessions.update(session.date, {
+        wordIds,
+        completedWordIds,
+        completedAt:
+          completedWordIds.length >= wordIds.length
+            ? session.completedAt ?? new Date().toISOString()
+            : undefined,
+      })
+    }
   })
 }
 
@@ -120,25 +156,27 @@ export async function clearAllLearningData(): Promise<void> {
 
 export async function getOrCreateTodaySession(): Promise<StudySession> {
   const date = todayKey()
-  const existing = await db.sessions.get(date)
-  if (existing) {
-    return existing
-  }
+  return db.transaction('rw', db.words, db.sessions, async () => {
+    const existing = await db.sessions.get(date)
+    if (existing) {
+      return existing
+    }
 
-  const words = (await db.words.toArray()).map(toStoredWord)
-  if (words.length === 0) {
-    throw new Error('Add at least one word before starting a study session.')
-  }
+    const words = (await db.words.toArray()).map(toStoredWord)
+    if (words.length === 0) {
+      throw new Error('Add at least one word before starting a study session.')
+    }
 
-  const selected = selectDailyWords(words, date)
-  const session: StudySession = {
-    date,
-    wordIds: selected.map((word) => word.id),
-    completedWordIds: [],
-    startedAt: new Date().toISOString(),
-  }
-  await db.sessions.add(session)
-  return session
+    const selected = selectDailyWords(words, date)
+    const session: StudySession = {
+      date,
+      wordIds: selected.map((word) => word.id),
+      completedWordIds: [],
+      startedAt: new Date().toISOString(),
+    }
+    await db.sessions.add(session)
+    return session
+  })
 }
 
 export async function commitReview({
@@ -163,6 +201,17 @@ export async function commitReview({
     db.reviews,
     db.sessions,
     async () => {
+      const session = await db.sessions.get(sessionDate)
+      if (!session) {
+        throw new Error('The active study session could not be found.')
+      }
+      if (!session.wordIds.includes(word.id)) {
+        throw new Error('This word is not part of the active study session.')
+      }
+      if (session.completedWordIds.includes(word.id)) {
+        throw new Error('This review has already been saved.')
+      }
+
       await db.words.update(word.id, {
         confidence: confidenceAfter,
         attempts: word.attempts + 1,
@@ -184,11 +233,6 @@ export async function commitReview({
         reviewedAt,
         source,
       })
-
-      const session = await db.sessions.get(sessionDate)
-      if (!session) {
-        throw new Error('The active study session could not be found.')
-      }
 
       const completedWordIds = [
         ...new Set([...session.completedWordIds, word.id]),

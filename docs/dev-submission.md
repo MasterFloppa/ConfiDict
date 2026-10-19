@@ -22,9 +22,9 @@ response, identifies whether it is strong, correct, partial, or incorrect, and
 gives concise feedback.
 
 Every word has a visible confidence score between 0 and 100. Each day,
-ConfiDict creates a five-card session from the learner's 15 lowest-confidence
-words. Weaker words have a greater chance of appearing, but weighted selection
-prevents every session from repeating the exact same cards.
+ConfiDict creates a session of up to five cards from the learner's 15
+lowest-confidence words. Weaker words have a greater chance of appearing, but
+weighted selection prevents every session from repeating the exact same cards.
 
 The intended users include:
 
@@ -44,7 +44,7 @@ already know.
 The core demonstration will show:
 
 1. Importing a list of words and definitions
-2. Starting a five-word daily session
+2. Starting an up-to-five-word daily session
 3. Defining a word using natural language
 4. Receiving private, local Gemma feedback
 5. Updating the word's confidence score
@@ -99,7 +99,7 @@ For each daily session, ConfiDict:
 
 1. Sorts the library from lowest to highest confidence
 2. Creates a pool from the 15 weakest words
-3. Selects five cards using weighted randomness
+3. Selects up to five cards using weighted randomness
 4. Gives lower-confidence cards a greater probability of selection
 
 The confidence changes are intentionally transparent:
